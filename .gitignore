@@ -1,0 +1,17 @@
+# Jetbrains ide meta data files
+.idea/
+
+node_modules/
+
+# Build outputs
+artifacts/
+cache/
+coverage/
+coverage.json
+
+# Env file
+.env
+
+# Package manager
+yarn.lock
+/types/
