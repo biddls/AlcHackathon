@@ -1,7 +1,7 @@
 pragma solidity ^0.8.11;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IAlchemistV2} from "./ALC_interfaces/IAlchemistV2.sol";
+import {IAlchemistV2} from ".././v2-contracts-master/contracts/interfaces/IAlchemistV2.sol";
 
 contract Manager {
 
@@ -10,6 +10,7 @@ contract Manager {
 		bool active;
 		address receiver;
 		uint256 shares;
+		uint256 sinceLast;
 	}
 
 	uint256 public positionIndex = 1; // shows the index of the next available position to write to
@@ -58,13 +59,16 @@ contract Manager {
 		}
 
 		// matching of positions or opening a position
+		// writes to the position to the next free slot
 		if (_position == 0){
 			positions[positionIndex] = Position(
 				_stable,
 				false,
 				msg.sender,
-				_shares
-			); // writes the position to the next free slot
+				_shares,
+				_stable ? cutOffTime : 0
+			);
+
 			positionIndex++; // sets the pointer up for the next user for the next free slot
 		} else { // matching with a proposed position
 			// cache locally for gas
@@ -92,7 +96,8 @@ contract Manager {
 				_stable,
 				true,
 				msg.sender,
-				_shares
+				_shares,
+				_stable ? cutOffTime : 0
 			);
 
 			// sets the pointer up for the next user for the next free slot
@@ -106,7 +111,7 @@ contract Manager {
 	/// @notice Allows someone to start the bond once the cut off time has been met
 	function startBond() public {
 		require(block.timestamp > cutOffTime);
-		require(started > true);
+//		require(started != true);
 		// todo: deposit
 		// calc total payout
 		// withdraw that much
@@ -120,8 +125,8 @@ contract Manager {
 	}
 
 	function receiveYield(uint256 _position) public {
-		time = block.timestamp; // caching for gas
-		require(block.timestamp > cutOffTime);
+		uint256 _now = block.timestamp; // caching for gas
+		require(_now > cutOffTime);
 	}
 
 	// makes sure that a function cant be called after the contract is due to start
