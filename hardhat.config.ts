@@ -32,7 +32,7 @@ const config: HardhatUserConfig = {
     defaultNetwork: "hardhat",
     gasReporter: {
         currency: "USD",
-        enabled: true, //!!process.env.REPORT_GAS,
+        enabled: false, //!!process.env.REPORT_GAS,
         excludeContracts: [],
         src: "./contracts",
     },
@@ -44,7 +44,7 @@ const config: HardhatUserConfig = {
         hardhat: {
             forking: {
                 url: env.ETHEREUM_RPC_URL,
-                blockNumber: 14456320 // TODO: Define block
+                // blockNumber: 15346252 // TODO: Define block
             },
             chainId: 1,
             accounts: baseAccounts,

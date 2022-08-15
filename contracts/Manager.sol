@@ -14,13 +14,16 @@ contract Manager {
 	}
 
 	uint256 public positionIndex = 1; // shows the index of the next available position to write to
-	uint256 public immutable cutOffTime; // the unix time stamp when the contract will go into action
-	uint256 public immutable yield; // the yield that will be generated over the course of the vault
 	address public immutable token; // the address of the token that will be used
-	uint256 public immutable shareScaler; // the address of the token that will be used
+	address public immutable alToken; // the address of the token that will be used
+	address public immutable alchemistV2; // the address of the token that will be used
+	uint256 public immutable yield; // the yield that will be generated over the course of the vault
 	uint256 public immutable duration; // the address of the token that will be used
+	uint256 public immutable cutOffTime; // the unix time stamp when the contract will go into action
+	uint256 public immutable shareScaler; // the address of the token that will be used
+	uint256 public immutable end; // the time when the bond matures
 	uint256 public shares; // the amount of shares that have been matched 100 from A matches w 100 from B = 100 not 200
-	bool public started = false; // toggle to show if the bond has started or not
+	uint8 public stage = 0; // shows what stage we are at
 	mapping(uint256 => Position) public positions; // list of all
 
 	// given a token, partisipents, and shares
@@ -30,23 +33,36 @@ contract Manager {
 	/// @param _duration the duration the bond is for
 	/// @param _cutOff the time when the bond will go active
 	/// @param _shareScalar the number of tokens per share (10^19 = 10 ETH or 10 DAI = 1 share etc.)
-	constructor(address _token, uint256 _yield, uint256 _duration, uint256 _cutOff, uint8 _shareScalar){
+	constructor(
+		address _token,
+		address _alToken,
+		address _AlchemistV2,
+		uint256 _yield,
+		uint256 _duration,
+		uint256 _cutOff,
+		uint8 _shareScalar
+	){
 		// makes sure that the contract is set to run in the future
-		require(block.timestamp < _cutOff);
-		require(_yield <= 10**18); // 100% return on the bond over its life (2% for 50 years = 100%)
+		require(block.timestamp < _cutOff, "Cut off < time");
+		require(_yield <= 10**18, "yield too high"); // 100% return on the bond over its life (2% for 50 years = 100%)
 		token = _token;
+		alToken = _alToken;
+		alchemistV2 = _AlchemistV2;
 		yield = _yield;
 		duration = _duration;
 		cutOffTime = _cutOff;
 		shareScaler = uint256(10**_shareScalar);
+		end = _cutOff + _duration;
 		// todo: add a check to see if the address for the token given is accepted by Alchemix
+//		require(IAlchemistV2(_AlchemistV2).isSupportedYieldToken(_token), "token not supported");
 	}
 
 	/// @notice allows users to submit offers and accept them
 	/// @param _stable are you opening a stable position or not
 	/// @param _shares how many shares will you be using
 	/// @param _position if you want to match with a position
-	function join(bool _stable, uint256 _shares, uint256 _position) cutOff public {
+	function join(bool _stable, uint256 _shares, uint256 _position) _stageCheck(0) public {
+		require(block.timestamp < cutOffTime);
 		require(_shares > 0);
 		// if caller is in the stable vault
 		// balance checks
@@ -109,34 +125,69 @@ contract Manager {
 	}
 
 	/// @notice Allows someone to start the bond once the cut off time has been met
-	function startBond() public {
+	function startBond() _stageCheck(0) public {
+		// ensures that the cut off time has been passed
 		require(block.timestamp > cutOffTime);
-//		require(started != true);
 		// todo: deposit
+		uint256 shares = IAlchemistV2(alchemistV2).deposit(
+			token,
+			IERC20(token).balanceOf(address(this)),
+			address(this));
 		// calc total payout
-		// withdraw that much
+		uint256 totalPayout = (shareScaler * shares * yield) / 10**18;
+		uint256 pps = AlchemistV2(alchemistV2).getYieldTokensPerShare(token);
+		// borrow that much
+		IAlchemistV2(alchemistV2).mint(
+			totalPayout / pps,
+			address(this));
+		// set started true so the bond can only be started once
+		stage = 1;
 	}
 
-	function endBond() public {
-		require(block.timestamp > cutOffTime);
+	/// @notice ends the bond and closes it all down for the users
+	function endBond() _stageCheck(1) public {
+		require(block.timestamp >= end);
 		// self liquidate
-		// return the principle to the stables
-		// split the rest
-	}
-
-	function receiveYield(uint256 _position) public {
-		uint256 _now = block.timestamp; // caching for gas
-		require(_now > cutOffTime);
-	}
-
-	// makes sure that a function cant be called after the contract is due to start
-	modifier cutOff(){
-		if (block.timestamp < cutOffTime){
-			_;
+		// if there is debt self liqudidate
+		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this));
+		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
+		if (shares > 0) {
+			IAlchemistV2(alchemistV2).liquidate(token, shares, 1);
 		} else {
-			// trigger start for the bond
-			startBond();
-			return;
+		// if there is no debt ...
+			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
 		}
+//		 return the principle to the stables
+
+//		 split the rest
+		stage = 2;
+	}
+
+	/// @notice allows the user to claim their yield
+	function claim(uint256 _position) public returns (uint256 _yield) {
+		require(stage != 0);
+		// caching for gas
+		uint256 _now = block.timestamp;
+		_now = _now > end ? end : _now;
+		require(_now > cutOffTime);
+
+		// caching for gas
+		Position memory temp = positions[_position];
+		require(temp.active);
+
+		// stable only
+		require(temp.stable);
+		_yield = (10^18 * (_now - temp.sinceLast)) / duration; // 10^18 = 100% elapsed 10^17 = 10% etc.
+		_yield = (temp.shares * shareScaler * _yield)/10^18; // number of tokens received
+		IERC20(alToken).transfer(msg.sender, _yield); // sends tokens to recipient
+	}
+
+	/// @notice allows users to redeem their principle once the bond has matured
+	function redeemPrinciple(uint256 _position) _stageCheck(2) returns (uint256 amount){
+		amount = 0;
+	}
+
+	modifier _stageCheck(uint8 _stage){
+		require(_stage == stage);
 	}
 }
