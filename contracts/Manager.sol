@@ -22,7 +22,8 @@ contract Manager {
 	uint256 public immutable cutOffTime; // the unix time stamp when the contract will go into action
 	uint256 public immutable shareScaler; // the address of the token that will be used
 	uint256 public immutable end; // the time when the bond matures
-	uint256 public shares; // the amount of shares that have been matched 100 from A matches w 100 from B = 100 not 200
+	uint256 public sharesStable; // the amount of stable shares that have been matched
+	uint256 public sharesVariable; // the amount of variable shares that have been matched
 	uint8 public stage = 0; // shows what stage we are at
 	mapping(uint256 => Position) public positions; // list of all
 
@@ -104,7 +105,8 @@ contract Manager {
 			}
 
 			// increment the amount of shares
-			shares += _shares;
+			sharesStable += _shares;
+			sharesVariable += _shares;
 
 			// store new position and activate another position
 			// writes the position to the next free slot
@@ -128,13 +130,13 @@ contract Manager {
 	function startBond() _stageCheck(0) public {
 		// ensures that the cut off time has been passed
 		require(block.timestamp > cutOffTime);
-		// todo: deposit
+		// deposits funds into alchemix
 		uint256 shares = IAlchemistV2(alchemistV2).deposit(
 			token,
 			IERC20(token).balanceOf(address(this)),
 			address(this));
 		// calc total payout
-		uint256 totalPayout = (shareScaler * shares * yield) / 10**18;
+		uint256 totalPayout = (shareScaler * sharesStable * yield) / 10**18;
 		uint256 pps = AlchemistV2(alchemistV2).getYieldTokensPerShare(token);
 		// borrow that much
 		IAlchemistV2(alchemistV2).mint(
@@ -151,15 +153,12 @@ contract Manager {
 		// if there is debt self liqudidate
 		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this));
 		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
-		if (shares > 0) {
-			IAlchemistV2(alchemistV2).liquidate(token, shares, 1);
+		if (sharesStable > 0) {
+			IAlchemistV2(alchemistV2).liquidate(token, sharesStable, 1);
 		} else {
 		// if there is no debt ...
-			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
+			IAlchemistV2(alchemistV2).withdraw(token, sharesStable, address(this));
 		}
-//		 return the principle to the stables
-
-//		 split the rest
 		stage = 2;
 	}
 
@@ -179,14 +178,40 @@ contract Manager {
 		require(temp.stable);
 		_yield = (10^18 * (_now - temp.sinceLast)) / duration; // 10^18 = 100% elapsed 10^17 = 10% etc.
 		_yield = (temp.shares * shareScaler * _yield)/10^18; // number of tokens received
-		IERC20(alToken).transfer(msg.sender, _yield); // sends tokens to recipient
+		IERC20(alToken).transfer(temp.receiver, _yield); // sends alTokens to recipient
 	}
 
 	/// @notice allows users to redeem their principle once the bond has matured
 	function redeemPrinciple(uint256 _position) _stageCheck(2) returns (uint256 amount){
-		amount = 0;
+		// caching for gas
+		Position memory temp = positions[_position];
+
+		require(temp.active);
+		// return the principle to the stables
+		if (temp.stable){
+			// calculates original deposit
+			sharesStable -= temp.shares;
+			amount = temp.shares * shareScaler;
+			// deletes position
+			delete positions[_position];
+			IERC20(token).transfer(temp.receiver, amount);
+		} else { // split the rest
+			// the profit that was made for the variable people, if this underflow's and reverts they didnt make any profit
+			uint256 reserved = IERC20(token).balanceOf(address(this)) - (sharesStable * shareScaler);
+			// split the profit proportionally
+			amount = (reserved * sharesVariable) / temp.shares;
+			sharesVariable -= temp.shares;
+			// deletes position
+			delete positions[_position];
+			// profit sent to receiver
+			IERC20(token).transfer(temp.receiver, amount);
+		}
 	}
 
+	// checks which stage the bond is at
+	// 0 - gather funds
+	// 1 - bond running
+	// 2 - end of bond, distribution of funds
 	modifier _stageCheck(uint8 _stage){
 		require(_stage == stage);
 	}
