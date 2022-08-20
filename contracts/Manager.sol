@@ -2,8 +2,9 @@ pragma solidity ^0.8.11;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAlchemistV2} from ".././v2-contracts-master/contracts/interfaces/IAlchemistV2.sol";
+import {IManager} from "./IManager.sol";
 
-contract Manager {
+contract Manager is IManager{
 
 	struct Position{
 		bool stable;
@@ -30,6 +31,8 @@ contract Manager {
 	// given a token, partisipents, and shares
 	/// @notice Allows a user to join the bond
 	/// @param _token address of the token
+	/// @param _alToken address of the alToken
+	/// @param _AlchemistV2 address of the alToken
 	/// @param _yield the yield the contract will generate for the stable party
 	/// @param _duration the duration the bond is for
 	/// @param _cutOff the time when the bond will go active
@@ -45,7 +48,12 @@ contract Manager {
 	){
 		// makes sure that the contract is set to run in the future
 		require(block.timestamp < _cutOff, "Cut off < time");
-		require(_yield <= 10**18, "yield too high"); // 100% return on the bond over its life (2% for 50 years = 100%)
+		// 100% return on the bond over its life (2% for 50 years = 100%)
+		require(_yield <= 10**18, "yield too high");
+		// a check to see if the address for the token given is accepted by Alchemix
+		require(IAlchemistV2(_AlchemistV2).isSupportedYieldToken(_token), "token not supported");
+
+		// load all the config variables into state
 		token = _token;
 		alToken = _alToken;
 		alchemistV2 = _AlchemistV2;
@@ -54,8 +62,6 @@ contract Manager {
 		cutOffTime = _cutOff;
 		shareScaler = uint256(10**_shareScalar);
 		end = _cutOff + _duration;
-		// todo: add a check to see if the address for the token given is accepted by Alchemix
-//		require(IAlchemistV2(_AlchemistV2).isSupportedYieldToken(_token), "token not supported");
 	}
 
 	/// @notice allows users to submit offers and accept them
@@ -130,14 +136,17 @@ contract Manager {
 	function startBond() _stageCheck(0) public {
 		// ensures that the cut off time has been passed
 		require(block.timestamp > cutOffTime);
+		//approves alchemistV2 for spending the tokens
+		uint256 _tokens = IERC20(token).balanceOf(address(this));
+		IERC20(token).approve(alchemistV2, _tokens);
 		// deposits funds into alchemix
-		uint256 shares = IAlchemistV2(alchemistV2).deposit(
+		/*uint256 shares = */IAlchemistV2(alchemistV2).deposit(
 			token,
-			IERC20(token).balanceOf(address(this)),
+			_tokens,
 			address(this));
 		// calc total payout
 		uint256 totalPayout = (shareScaler * sharesStable * yield) / 10**18;
-		uint256 pps = AlchemistV2(alchemistV2).getYieldTokensPerShare(token);
+		uint256 pps = IAlchemistV2(alchemistV2).getYieldTokensPerShare(token);
 		// borrow that much
 		IAlchemistV2(alchemistV2).mint(
 			totalPayout / pps,
@@ -151,18 +160,19 @@ contract Manager {
 		require(block.timestamp >= end);
 		// self liquidate
 		// if there is debt self liqudidate
-		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this));
-		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
-		if (sharesStable > 0) {
+		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
+		///*todo*/		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
+		if (shares > 0) {
 			IAlchemistV2(alchemistV2).liquidate(token, sharesStable, 1);
 		} else {
-		// if there is no debt ...
+			// if there is no debt ...
 			IAlchemistV2(alchemistV2).withdraw(token, sharesStable, address(this));
 		}
 		stage = 2;
 	}
 
 	/// @notice allows the user to claim their yield
+	/// @param _position what position will you call the claim for
 	function claim(uint256 _position) public returns (uint256 _yield) {
 		require(stage != 0);
 		// caching for gas
@@ -182,7 +192,8 @@ contract Manager {
 	}
 
 	/// @notice allows users to redeem their principle once the bond has matured
-	function redeemPrinciple(uint256 _position) _stageCheck(2) returns (uint256 amount){
+	/// @param _position allows someone to collect the funds from a position
+	function redeemPrinciple(uint256 _position) _stageCheck(2) public returns (uint256 amount){
 		// caching for gas
 		Position memory temp = positions[_position];
 
@@ -214,5 +225,6 @@ contract Manager {
 	// 2 - end of bond, distribution of funds
 	modifier _stageCheck(uint8 _stage){
 		require(_stage == stage);
+		_;
 	}
 }

@@ -14,4 +14,4 @@ coverage.json
 
 # Package manager
 yarn.lock
-/types/
+types/
