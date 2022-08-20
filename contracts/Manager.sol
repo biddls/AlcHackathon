@@ -144,12 +144,11 @@ contract Manager is IManager{
 			token,
 			_tokens,
 			address(this));
-		// calc total payout
-		uint256 totalPayout = (shareScaler * sharesStable * yield) / 10**18;
-		uint256 pps = IAlchemistV2(alchemistV2).getYieldTokensPerShare(token);
-		// borrow that much
+
+		// mint the yield
 		IAlchemistV2(alchemistV2).mint(
-			totalPayout / pps,
+			// total payout
+			(shareScaler * sharesStable * yield) / 10**18,
 			address(this));
 		// set started true so the bond can only be started once
 		stage = 1;

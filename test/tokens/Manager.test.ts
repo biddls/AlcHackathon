@@ -71,9 +71,6 @@ describe("Manager Testing", async function () {
         // manager = await managerFactory.deploy();
     });
 
-    it.skip("setup", async () => {
-    });
-
     describe("deploy sample Manager", async function () {
 
         const ten = ethers.utils.parseEther("10")
@@ -172,7 +169,7 @@ describe("Manager Testing", async function () {
             expect(output.receiver).to.be.equal(whale1._address);
             expect(output.shares).to.be.equal(1);
             expect(output.sinceLast).to.be.above(now());
-            console.log(output.sinceLast, now())
+            // console.log(output.sinceLast, now())
         });
 
         it("Normal matching", async function (){
@@ -205,6 +202,8 @@ describe("Manager Testing", async function () {
 
     describe("start bond", async function () {
 
+        const ten = ethers.utils.parseEther("10")
+
         beforeEach( async function () {
             const _yield = ethers.utils.parseEther("0.5"); // 50% return over the course of the bond
             const start = BigInt(now()) + BigInt(200);
@@ -217,17 +216,8 @@ describe("Manager Testing", async function () {
                 Math.floor(year * 10),
                 start,
                 18);
-
-            // await alchemixSuite.addAddrToWhitelist(manager.address)
-            //
-            // expect(
-            //     await alchemixSuite
-            //         .getContract("Whitelist_alETH_Alchemist.json")
-            //         .isWhitelisted(manager.address)
-            // ).to.be.true;
         })
 
-        const ten = ethers.utils.parseEther("10")
 
         it("Normal proposing", async function (){
             // impersonate yvWETH whale
@@ -260,6 +250,12 @@ describe("Manager Testing", async function () {
             await network.provider.send("evm_mine");
 
             await manager.startBond();
+
+            expect(
+                await alchemixSuite
+                    .getContract("AlEth.json")
+                    .balanceOf(manager.address)
+            ).to.be.equal(ethers.utils.parseEther("0.5"));
         });
     });
 });
