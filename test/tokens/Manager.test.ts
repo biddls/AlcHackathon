@@ -4,6 +4,11 @@ import { network, ethers } from "hardhat";
 import {now} from "../../script/now"
 import AlchemixSuite from "../../script/alchemix-forking";
 
+import chai from "chai";
+import { solidity } from "ethereum-waffle";
+
+chai.use(solidity);
+
 import {
     Manager,    Manager__factory,
     Util,       Util__factory
@@ -200,11 +205,11 @@ describe("Manager Testing", async function () {
         });
     });
 
-    describe("start bond", async function () {
+    describe("bond test full", async function () {
 
         const ten = ethers.utils.parseEther("10")
 
-        beforeEach( async function () {
+        it("life cycle", async function (){
             const _yield = ethers.utils.parseEther("0.5"); // 50% return over the course of the bond
             const start = BigInt(now()) + BigInt(200);
 
@@ -216,10 +221,7 @@ describe("Manager Testing", async function () {
                 Math.floor(year * 10),
                 start,
                 18);
-        })
 
-
-        it("Normal proposing", async function (){
             // impersonate yvWETH whale
             const whale1 = await ethers.provider.getSigner(
                 yvWETH_wales[0]
@@ -239,7 +241,7 @@ describe("Manager Testing", async function () {
                 0
             );
 
-            await manager.connect(whale1).join(
+            await manager.connect(whale2).join(
                 false,
                 1,
                 1
@@ -256,6 +258,34 @@ describe("Manager Testing", async function () {
                     .getContract("AlEth.json")
                     .balanceOf(manager.address)
             ).to.be.equal(ethers.utils.parseEther("0.5"));
+
+            // fast forwards by 1 year
+            // the yield for stable should be 10% for the 50% total return
+            // as the bond is for 10 years
+            await network.provider.send("evm_increaseTime", [31557600]);
+            await network.provider.send("evm_mine");
+
+            // console.log((await alchemixSuite
+            //     .getContract("AlEth.json")
+            //     .balanceOf(whale1._address)).toString())
+
+            await manager.connect(whale1).claim(1);
+
+            console.log((await alchemixSuite
+                .getContract("AlEth.json")
+                .balanceOf(whale1._address)).toString())
+
+            console.log(await alchemixSuite
+                .getContract("AlEth.json")
+                .balanceOf(whale1._address))
+
+            console.log(ethers.utils.parseEther("0.05"))
+
+            expect(
+                await alchemixSuite
+                    .getContract("AlEth.json")
+                    .balanceOf(whale1._address)
+            ).to.be.greaterThanOrEqual(ethers.utils.parseEther("0.05"));
         });
     });
 });

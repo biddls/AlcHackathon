@@ -4,6 +4,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAlchemistV2} from ".././v2-contracts-master/contracts/interfaces/IAlchemistV2.sol";
 import {IManager} from "./IManager.sol";
 
+import "hardhat/console.sol";
+
 contract Manager is IManager{
 
 	struct Position{
@@ -185,8 +187,13 @@ contract Manager is IManager{
 
 		// stable only
 		require(temp.stable);
-		_yield = (10^18 * (_now - temp.sinceLast)) / duration; // 10^18 = 100% elapsed 10^17 = 10% etc.
-		_yield = (temp.shares * shareScaler * _yield)/10^18; // number of tokens received
+//		console.log(10e18 * (_now - temp.sinceLast), duration);
+		_yield = (10e18 * (_now - temp.sinceLast)) / duration; // 10^18 = 100% elapsed 10^17 = 10% etc.
+//		console.log(_yield, yield);
+		_yield = (_yield * yield) / 10e18;
+//		console.log(_yield);
+		_yield = (((10e18 * sharesStable) / temp.shares) * _yield)/(10e18); // number of tokens received
+//		console.log(_yield);
 		IERC20(alToken).transfer(temp.receiver, _yield); // sends alTokens to recipient
 	}
 
