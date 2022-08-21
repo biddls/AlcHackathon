@@ -1,11 +1,14 @@
 import {SignerWithAddress} from "@nomiclabs/hardhat-ethers/signers";
-import {expect} from "chai";
+const { expect, use } = require('chai');
 import { network, ethers } from "hardhat";
 import {now} from "../../script/now"
 import AlchemixSuite from "../../script/alchemix-forking";
 
 import chai from "chai";
-import { solidity } from "ethereum-waffle";
+
+const { solidity } = require('ethereum-waffle');
+
+use(solidity);
 
 chai.use(solidity);
 
@@ -13,7 +16,9 @@ import {
     Manager,    Manager__factory,
     Util,       Util__factory
 } from '../../types';
+
 import {beforeEach} from "mocha";
+import {BigNumber} from "ethers";
 
 // rETH = "0xae78736Cd615f374D3085123A210448E74Fc6393"
 // yvWETH = "0xa258C4606Ca8206D8aA700cE2143D7db854D168c"
@@ -271,21 +276,36 @@ describe("Manager Testing", async function () {
 
             await manager.connect(whale1).claim(1);
 
-            console.log((await alchemixSuite
-                .getContract("AlEth.json")
-                .balanceOf(whale1._address)).toString())
+            expect(
+                await alchemixSuite
+                    .getContract("AlEth.json")
+                    .balanceOf(whale1._address)
+            ).to.be.above(ethers.utils.parseEther("0.05"));
 
-            console.log(await alchemixSuite
-                .getContract("AlEth.json")
-                .balanceOf(whale1._address))
+            // fast forwards by 10 years
+            // the yield for stable should be 90% for the 50% total return
+            // as the bond is for 10 years, @1 year it was reddemed
+            await network.provider.send("evm_increaseTime", [31557600 * 10]);
+            await network.provider.send("evm_mine");
 
-            console.log(ethers.utils.parseEther("0.05"))
+            await manager.connect(whale1).claim(1);
+
+            // console.log((await alchemixSuite
+            //     .getContract("AlEth.json")
+            //     .balanceOf(whale1._address)).toString())
+
+            // ensure that with the end of the bond all the yield has been returned
+            expect(
+                await alchemixSuite
+                    .getContract("AlEth.json")
+                    .balanceOf(whale1._address)
+            ).to.be.below(ethers.utils.parseEther("0.5"));
 
             expect(
                 await alchemixSuite
                     .getContract("AlEth.json")
                     .balanceOf(whale1._address)
-            ).to.be.greaterThanOrEqual(ethers.utils.parseEther("0.05"));
+            ).to.be.above(ethers.utils.parseEther("0.49"));
         });
     });
 });

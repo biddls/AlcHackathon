@@ -156,22 +156,6 @@ contract Manager is IManager{
 		stage = 1;
 	}
 
-	/// @notice ends the bond and closes it all down for the users
-	function endBond() _stageCheck(1) public {
-		require(block.timestamp >= end);
-		// self liquidate
-		// if there is debt self liqudidate
-		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
-		///*todo*/		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
-		if (shares > 0) {
-			IAlchemistV2(alchemistV2).liquidate(token, sharesStable, 1);
-		} else {
-			// if there is no debt ...
-			IAlchemistV2(alchemistV2).withdraw(token, sharesStable, address(this));
-		}
-		stage = 2;
-	}
-
 	/// @notice allows the user to claim their yield
 	/// @param _position what position will you call the claim for
 	function claim(uint256 _position) public returns (uint256 _yield) {
@@ -179,6 +163,8 @@ contract Manager is IManager{
 		// caching for gas
 		uint256 _now = block.timestamp;
 		_now = _now > end ? end : _now;
+
+		// not sure if this is needed
 		require(_now > cutOffTime);
 
 		// caching for gas
@@ -194,7 +180,28 @@ contract Manager is IManager{
 //		console.log(_yield);
 		_yield = (((10e18 * sharesStable) / temp.shares) * _yield)/(10e18); // number of tokens received
 //		console.log(_yield);
-		IERC20(alToken).transfer(temp.receiver, _yield); // sends alTokens to recipient
+
+		// updates since last
+		positions[_position].sinceLast = _now;
+
+		// sends alTokens to recipient
+		IERC20(alToken).transfer(temp.receiver, _yield);
+	}
+
+	/// @notice ends the bond and closes it all down for the users
+	function endBond() _stageCheck(1) public {
+		require(block.timestamp >= end);
+		// self liquidate
+		// if there is debt self liqudidate
+		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
+		///*todo*/		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
+		if (shares > 0) {
+			IAlchemistV2(alchemistV2).liquidate(token, sharesStable, 1);
+		} else {
+			// if there is no debt ...
+			IAlchemistV2(alchemistV2).withdraw(token, sharesStable, address(this));
+		}
+		stage = 2;
 	}
 
 	/// @notice allows users to redeem their principle once the bond has matured
