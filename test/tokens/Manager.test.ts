@@ -14,7 +14,8 @@ chai.use(solidity);
 
 import {
     Manager,    Manager__factory,
-    Util,       Util__factory
+    Util,       Util__factory,
+    Adapter,    Adapter__factory
 } from '../../types';
 
 import {beforeEach} from "mocha";
@@ -33,6 +34,7 @@ let yvWETH_wales = [
 
 let managerFactory: Manager__factory;
 let UtilFactory: Util__factory;
+let AdapterFactory: Adapter__factory;
 
 
 describe("Manager Testing", async function () {
@@ -45,6 +47,7 @@ describe("Manager Testing", async function () {
 
     let manager: Manager;
     let util: Util;
+    let adapter: Adapter;
 
     let Oaddr: string = "0x0000000000000000000000000000000000000000";
     let maxInt: BigInt = BigInt(2**256) - BigInt(1);
@@ -64,6 +67,8 @@ describe("Manager Testing", async function () {
         // create factory
         managerFactory = new Manager__factory(deployer);
         UtilFactory = new Util__factory(deployer);
+        AdapterFactory = new Adapter__factory(deployer);
+
         util = await UtilFactory.deploy();
 
         // setup whales to be impersonated
@@ -282,11 +287,24 @@ describe("Manager Testing", async function () {
                     .balanceOf(whale1._address)
             ).to.be.above(ethers.utils.parseEther("0.05"));
 
+            // update token adapter to point to custom one so profits can be reported
+            adapter = await AdapterFactory.deploy(alchemixSuite.getContract("YearnAdapter_WETH.json").price());
+
+            await alchemixSuite.getContract("AlchemistV2_alETH.json").connect(alchemixSuite.getDevMS()).setTokenAdapter(
+                alchemixSuite.getContract("yvWETH.json").address,
+                adapter.address
+            );
+
+
             // fast forwards by 10 years
             // the yield for stable should be 90% for the 50% total return
             // as the bond is for 10 years, @1 year it was reddemed
             await network.provider.send("evm_increaseTime", [31557600 * 10]);
             await network.provider.send("evm_mine");
+
+            // reports profits for the vault
+            await adapter.setPrice(ethers.utils.parseEther("2"))
+            expect(await adapter.price()).to.be.equal(ethers.utils.parseEther("2"))
 
             await manager.connect(whale1).claim(1);
 
@@ -306,6 +324,21 @@ describe("Manager Testing", async function () {
                     .getContract("AlEth.json")
                     .balanceOf(whale1._address)
             ).to.be.above(ethers.utils.parseEther("0.49"));
+
+            // the yield from the bond has been collected time to close the bond and everyone collects their funds
+            // collect the yield from the "vault"
+            await alchemixSuite.getContract("AlchemistV2_alETH.json")
+                .connect(alchemixSuite.getDevMS()).harvest(
+                    alchemixSuite.getContract("yvWETH.json").address, 1);
+
+            await alchemixSuite.getContract("AlchemistV2_alETH.json").poke(manager.address);
+
+            // fake bond profits
+
+
+            await manager.endBond();
+
+            // redeem profits
         });
     });
 });

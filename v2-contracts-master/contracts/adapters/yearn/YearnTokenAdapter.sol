@@ -22,7 +22,7 @@ contract YearnTokenAdapter is ITokenAdapter {
     }
 
     /// @inheritdoc ITokenAdapter
-    function price() external view override returns (uint256) {
+    function price() external view virtual override returns (uint256) {
         return IYearnVaultV2(token).pricePerShare();
     }
 

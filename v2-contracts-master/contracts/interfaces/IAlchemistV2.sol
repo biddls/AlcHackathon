@@ -16,4 +16,6 @@ interface IAlchemistV2 is
     IAlchemistV2Immutables,
     IAlchemistV2Events,
     IAlchemistV2State
-{ }
+{
+    function convertYieldTokensToShares(address yieldToken, uint256 amount) external view returns (uint256);
+}

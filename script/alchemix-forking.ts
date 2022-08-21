@@ -62,6 +62,10 @@ class AlchemixSuite{
                 .isWhitelisted()
         ).to.be.true;
     }
+
+    getDevMS(){
+        return this.devMS
+    }
 }
 
 export default AlchemixSuite;

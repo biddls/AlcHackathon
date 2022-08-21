@@ -28,6 +28,8 @@ contract Manager is IManager{
 	uint256 public sharesStable; // the amount of stable shares that have been matched
 	uint256 public sharesVariable; // the amount of variable shares that have been matched
 	uint8 public stage = 0; // shows what stage we are at
+	uint256 public profitVariable = 0; // the profit to be returned to the variable positions (alAssets)
+
 	mapping(uint256 => Position) public positions; // list of all
 
 	// given a token, partisipents, and shares
@@ -192,15 +194,19 @@ contract Manager is IManager{
 	function endBond() _stageCheck(1) public {
 		require(block.timestamp >= end);
 		// self liquidate
-		// if there is debt self liqudidate
-		(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
-		///*todo*/		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
-		if (shares > 0) {
-			IAlchemistV2(alchemistV2).liquidate(token, sharesStable, 1);
-		} else {
-			// if there is no debt ...
-			IAlchemistV2(alchemistV2).withdraw(token, sharesStable, address(this));
-		}
+		// if there is debt self liquidate if not withdraw everything
+		// todo fix this:
+//		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
+//		if (debt > 0 ){
+//			uint256 _debt = uint256(debt);
+//			IAlchemistV2(alchemistV2).liquidate(token, _debt, 1);
+//			(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
+//			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
+//		} else {
+//			(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
+//			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
+//		}
+		profitVariable = IERC20(alToken).balanceOf(address(this));
 		stage = 2;
 	}
 
@@ -227,6 +233,12 @@ contract Manager is IManager{
 			sharesVariable -= temp.shares;
 			// deletes position
 			delete positions[_position];
+			// alAsset calculations
+			if(profitVariable > 0){
+				uint256 _temp = (profitVariable * sharesVariable) / temp.shares;
+				profitVariable -= _temp;
+				IERC20(alToken).transfer(temp.receiver, _temp);
+			}
 			// profit sent to receiver
 			IERC20(token).transfer(temp.receiver, amount);
 		}
