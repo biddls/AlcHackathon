@@ -37,3 +37,4 @@ Because the stable side gets the yield upfront from the variable party their ret
 - [ ] The ending of the bond and the redistribution of funds to all parties (written but not tested)
 - [ ] A global contract to manage all the accounts meaning only 1 contract address needs whitelisting instead of on a per-bond basis
 - [ ] Future: NTS to represent the positions allowing for a true bond market to be created allowing the bonds to change in value with changing yeilds
+<br /><br />![tests](https://user-images.githubusercontent.com/47589887/185922951-cd448ad6-11e1-44a8-9538-972251e5603a.png)
