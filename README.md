@@ -29,3 +29,11 @@ which is 8% anual return none compounding or 5.9% if comounded
 ## Summary
 The vairable side can produce negative returns if the vault underperforms the bonds rate, making thise side a leveraged yield farming product<br />
 Because the stable side gets the yield upfront from the variable party their returns are guranteed
+
+## ToDo
+- [x] Allow the creation of the bond contract and users to join to bond being matched with each-other ensuring enough funds on both sides
+- [x] Starting of the bond and the deposit of funds
+- [x] The withdrawl of yield owed to the stable party
+- [ ] The ending of the bond and the redistribution of funds to all parties (written but not tested)
+- [ ] A global contract to manage all the accounts meaning only 1 contract address needs whitelisting instead of on a per-bond basis
+- [ ] Future: NTS to represent the positions allowing for a true bond market to be created allowing the bonds to change in value with changing yeilds
