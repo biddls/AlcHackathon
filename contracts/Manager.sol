@@ -196,17 +196,19 @@ contract Manager is IManager{
 		// self liquidate
 		// if there is debt self liquidate if not withdraw everything
 		// todo fix this:
-//		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
-//		if (debt > 0 ){
-//			uint256 _debt = uint256(debt);
-//			IAlchemistV2(alchemistV2).liquidate(token, _debt, 1);
-//			(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
-//			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
-//		} else {
-//			(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
-//			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
-//		}
-		profitVariable = IERC20(alToken).balanceOf(address(this));
+		(int256 debt, ) = IAlchemistV2(alchemistV2).accounts(address(this));
+		if (debt > 0 ){
+			uint256 _debt = uint256(debt);
+			IAlchemistV2(alchemistV2).liquidate(token, _debt, 1);
+			(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
+			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
+		} else {
+			(uint256 shares, ) = IAlchemistV2(alchemistV2).positions(address(this), token);
+			IAlchemistV2(alchemistV2).withdraw(token, shares, address(this));
+		}
+
+		// this is for when just blindly faking the coins back from AlchemistV2
+//		profitVariable = IERC20(alToken).balanceOf(address(this));
 		stage = 2;
 	}
 
