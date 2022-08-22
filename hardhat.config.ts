@@ -36,6 +36,9 @@ const config: HardhatUserConfig = {
         excludeContracts: [],
         src: "./contracts",
     },
+    mocha: {
+        timeout: 100000000
+    },
     networks: {
         // myNode: {
         //     url: "http://127.0.0.1:8546",
@@ -48,7 +51,7 @@ const config: HardhatUserConfig = {
             },
             chainId: 1,
             accounts: baseAccounts,
-            initialBaseFeePerGas: 0
+            initialBaseFeePerGas: 0,
         },
     },
     paths: {

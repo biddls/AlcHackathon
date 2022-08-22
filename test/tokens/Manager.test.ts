@@ -80,12 +80,6 @@ describe("Manager Testing", async function () {
         }
     });
 
-    beforeEach(async function () {
-        // Create Token
-        // tok = await TokenFactory.deploy();
-        // manager = await managerFactory.deploy();
-    });
-
     describe("deploy sample Manager", async function () {
 
         const ten = ethers.utils.parseEther("10")
@@ -308,9 +302,9 @@ describe("Manager Testing", async function () {
 
             await manager.connect(whale1).claim(1);
 
-            // console.log((await alchemixSuite
-            //     .getContract("AlEth.json")
-            //     .balanceOf(whale1._address)).toString())
+            console.log((await alchemixSuite
+                .getContract("AlEth.json")
+                .balanceOf(whale1._address)).toString())
 
             // ensure that with the end of the bond all the yield has been returned
             expect(
@@ -337,7 +331,7 @@ describe("Manager Testing", async function () {
 
             //// Cant test past here because I cant seem to get the AlchemistV2 contract to work for me properly ////
 
-            // const alETH_god = alchemixSuite.getContract("AlchemistV2_alETH.json").signer;
+            const alETH_god = alchemixSuite.getContract("AlchemistV2_alETH.json").signer;
             // console.log(alETH_god.address)
             // await alchemixSuite.getContract("AlEth.json").connect(alETH_god).mint(manager.address, ethers.utils.parseEther("0.1"));
             //
